@@ -258,4 +258,5 @@ const LandingPage = ({ setCurrentPage }) => {
                 ].map((feature, index) => (
                   <li key={index} className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-600
+                     <span className="text-gray-600">{item}</span>
+</li>
