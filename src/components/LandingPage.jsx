@@ -35,7 +35,7 @@ const StockTicker = () => {
   return (
     <div className="bg-white border-b border-gray-200 overflow-hidden relative">
       <div className="flex">
-        <div className="flex space-x-8 whitespace-nowrap py-3 px-4 animate-marquee min-w-max">
+        <div className="flex space-x-8 whitespace-nowrap py-3 px-4 animate-marquee md:animate-marquee hover:pause min-w-max">
           {[...tickerStocks, ...tickerStocks, ...tickerStocks].map((stock, index) => (
             <div key={index} className="flex items-center space-x-2 text-sm flex-shrink-0">
               <span className="font-semibold text-gray-900">{stock.symbol}</span>
@@ -63,31 +63,6 @@ const LandingPage = ({ setCurrentPage }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
-      <style jsx>{`
-        @keyframes marquee {
-          0% {
-            transform: translateX(0%);
-          }
-          100% {
-            transform: translateX(-33.333%);
-          }
-        }
-        
-        .animate-marquee {
-          animation: marquee 45s linear infinite;
-          will-change: transform;
-        }
-        
-        .animate-marquee:hover {
-          animation-play-state: paused;
-        }
-        
-        @media (max-width: 768px) {
-          .animate-marquee {
-            animation-duration: 30s;
-          }
-        }
-      `}</style>
       {/* Navigation */}
       <nav className="bg-white/95 backdrop-blur-md shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between p-4 lg:px-8">
