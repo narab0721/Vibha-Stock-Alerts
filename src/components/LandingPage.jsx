@@ -339,6 +339,7 @@ const LandingPage = ({ setCurrentPage }) => {
           </div>
         </div>
       </footer>
+      </div>
   );
 };
 
