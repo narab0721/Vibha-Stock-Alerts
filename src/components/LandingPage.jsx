@@ -191,32 +191,32 @@ const LandingPage = ({ setCurrentPage }) => {
               {
                 icon: Zap,
                 title: 'Lightning Fast Alerts',
-                description: 'Get notifications within 30 seconds of official announcements from BSE, NSE, and company filings.',
+                description: 'Get notifications within 30 seconds of official announcements from BSE, NSE, and company filings.'
               },
               {
                 icon: Smartphone,
                 title: 'WhatsApp Integration',
-                description: 'Receive alerts directly on WhatsApp with rich formatting and quick action buttons.',
+                description: 'Receive alerts directly on WhatsApp with rich formatting and quick action buttons.'
               },
               {
                 icon: Shield,
                 title: 'Verified Data Sources',
-                description: 'Direct feeds from official exchanges and regulatory bodies ensure 100% accuracy.',
+                description: 'Direct feeds from official exchanges and regulatory bodies ensure 100% accuracy.'
               },
               {
                 icon: Target,
                 title: 'Smart Filtering',
-                description: 'AI-powered filters to send only relevant alerts based on your portfolio and preferences.',
+                description: 'AI-powered filters to send only relevant alerts based on your portfolio and preferences.'
               },
               {
                 icon: BarChart3,
                 title: 'Market Analytics',
-                description: 'Advanced charts, technical indicators, and market sentiment analysis tools.',
+                description: 'Advanced charts, technical indicators, and market sentiment analysis tools.'
               },
               {
                 icon: Globe,
                 title: '24/7 Monitoring',
-                description: 'Round-the-clock monitoring of global markets and after-hours developments.',
+                description: 'Round-the-clock monitoring of global markets and after-hours developments.'
               }
             ].map((feature, index) => (
               <div key={index} className="group bg-white p-8 rounded-2xl shadow-sm border-2 border-gray-100 hover:border-blue-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
@@ -258,6 +258,102 @@ const LandingPage = ({ setCurrentPage }) => {
                 ].map((feature, index) => (
                   <li key={index} className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
-                     <span className="text-gray-600">{feature}</span>
-                </li> 
+                    <span className="text-gray-600">{feature}</span>
+                  </li>
                 ))}
+              </ul>
+              
+              <button 
+                onClick={() => setCurrentPage('login')}
+                className="w-full bg-gray-100 text-gray-900 py-4 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
+              >
+                Start Free Trial
+              </button>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-8 rounded-2xl relative shadow-2xl transform hover:scale-105 transition-all duration-300">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <span className="bg-yellow-400 text-yellow-900 px-4 py-2 rounded-full text-sm font-bold shadow-lg">
+                  ⭐ Most Popular
+                </span>
+              </div>
+              
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-white mb-2">Pro Plan</h3>
+                <div className="text-5xl font-bold text-white mb-2">₹499</div>
+                <div className="text-blue-100">per month</div>
+              </div>
+              
+              <ul className="space-y-4 mb-8">
+                {[
+                  'Unlimited companies',
+                  'All alert types (100+ categories)',
+                  'Advanced filtering & AI insights',
+                  'Priority WhatsApp delivery',
+                  'Custom alert schedules',
+                  'Portfolio analytics',
+                  'Priority support'
+                ].map((feature, index) => (
+                  <li key={index} className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-white mr-3 flex-shrink-0" />
+                    <span className="text-blue-100">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              
+              <button 
+                onClick={() => setCurrentPage('login')}
+                className="w-full bg-white text-blue-600 py-4 rounded-xl hover:bg-blue-50 transition-all duration-200 font-bold shadow-lg"
+              >
+                Get Started Now
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-16">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="col-span-1 md:col-span-2">
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-xl font-bold">Vibha StockAlerts</span>
+              </div>
+              <p className="text-gray-400 mb-4 max-w-md">
+                India's most trusted stock alert platform. Get instant notifications for market-moving events and never miss an opportunity.
+              </p>
+            </div>
+            
+            <div>
+              <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
+                <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="text-lg font-semibold mb-4">Contact</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li className="flex items-center"><Mail className="w-4 h-4 mr-2" />support@vibhastockalerts.com</li>
+                <li className="flex items-center"><Phone className="w-4 h-4 mr-2" />+91 9876543210</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
+            <p>&copy; 2024 Vibha StockAlerts. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LandingPage;
