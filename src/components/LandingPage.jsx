@@ -33,11 +33,11 @@ const StockTicker = () => {
   ];
 
   return (
-    <div className="bg-white border-b border-gray-200 overflow-hidden">
+    <div className="bg-white border-b border-gray-200 overflow-hidden relative">
       <div className="flex">
-        <div className="flex space-x-8 whitespace-nowrap py-3 px-4 animate-marquee">
-          {[...tickerStocks, ...tickerStocks].map((stock, index) => (
-            <div key={index} className="flex items-center space-x-2 text-sm">
+        <div className="flex space-x-8 whitespace-nowrap py-3 px-4 animate-marquee min-w-max">
+          {[...tickerStocks, ...tickerStocks, ...tickerStocks].map((stock, index) => (
+            <div key={index} className="flex items-center space-x-2 text-sm flex-shrink-0">
               <span className="font-semibold text-gray-900">{stock.symbol}</span>
               <span className="text-gray-600">{stock.price}</span>
               <span className={`flex items-center font-medium ${
@@ -63,6 +63,31 @@ const LandingPage = ({ setCurrentPage }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
+      <style jsx>{`
+        @keyframes marquee {
+          0% {
+            transform: translateX(0%);
+          }
+          100% {
+            transform: translateX(-33.333%);
+          }
+        }
+        
+        .animate-marquee {
+          animation: marquee 45s linear infinite;
+          will-change: transform;
+        }
+        
+        .animate-marquee:hover {
+          animation-play-state: paused;
+        }
+        
+        @media (max-width: 768px) {
+          .animate-marquee {
+            animation-duration: 30s;
+          }
+        }
+      `}</style>
       {/* Navigation */}
       <nav className="bg-white/95 backdrop-blur-md shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between p-4 lg:px-8">
@@ -250,12 +275,7 @@ const LandingPage = ({ setCurrentPage }) => {
               </div>
               
               <ul className="space-y-4 mb-8">
-                {[
-                  'Up to 5 companies',
-                  'Basic alerts (Results, Dividends)',
-                  'WhatsApp notifications',
-                  'Email support'
-                ].map((feature, index) => (
+                {['Up to 5 companies', 'Basic alerts (Results, Dividends)', 'WhatsApp notifications', 'Email support'].map((feature, index) => (
                   <li key={index} className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
                     <span className="text-gray-600">{feature}</span>
@@ -285,15 +305,7 @@ const LandingPage = ({ setCurrentPage }) => {
               </div>
               
               <ul className="space-y-4 mb-8">
-                {[
-                  'Unlimited companies',
-                  'All alert types (100+ categories)',
-                  'Advanced filtering & AI insights',
-                  'Priority WhatsApp delivery',
-                  'Custom alert schedules',
-                  'Portfolio analytics',
-                  'Priority support'
-                ].map((feature, index) => (
+                {['Unlimited companies', 'All alert types (100+ categories)', 'Advanced filtering & AI insights', 'Priority WhatsApp delivery', 'Custom alert schedules', 'Portfolio analytics', 'Priority support'].map((feature, index) => (
                   <li key={index} className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-white mr-3 flex-shrink-0" />
                     <span className="text-blue-100">{feature}</span>
