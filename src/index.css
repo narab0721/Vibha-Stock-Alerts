@@ -36,3 +36,18 @@ html {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
+
+/* Animation pause utility */
+.pause {
+  animation-play-state: paused !important;
+}
+
+/* Stock ticker animation enhancements */
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Ensure animation works across different browsers */
+.animate-marquee {
+  will-change: transform;
+}
