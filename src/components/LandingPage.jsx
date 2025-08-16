@@ -338,7 +338,7 @@ const LandingPage = ({ setCurrentPage }) => {
             <p>&copy; 2024 Vibha StockAlerts. All rights reserved.</p>
           </div>
         </div>
-      </div>
+      </footer>
     </div>
   );
 };
