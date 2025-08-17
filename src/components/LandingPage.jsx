@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   TrendingUp, 
   Users, 
@@ -20,26 +20,146 @@ import {
   TrendingDown
 } from 'lucide-react';
 
+// Enhanced StockTicker with Live API Integration
 const StockTicker = () => {
-  const tickerStocks = [
-    { symbol: 'RELIANCE', price: '₹2,847.65', change: '+12.45', isPositive: true },
-    { symbol: 'TCS', price: '₹3,945.20', change: '-8.75', isPositive: false },
-    { symbol: 'INFY', price: '₹1,756.30', change: '+23.10', isPositive: true },
-    { symbol: 'HDFCBANK', price: '₹1,689.90', change: '+8.41', isPositive: true },
-    { symbol: 'ICICIBANK', price: '₹1,045.30', change: '-12.71', isPositive: false },
-    { symbol: 'BHARTIARTL', price: '₹895.75', change: '+29.42', isPositive: true },
-    { symbol: 'ITC', price: '₹456.80', change: '+5.20', isPositive: true },
-    { symbol: 'WIPRO', price: '₹432.15', change: '-2.85', isPositive: false }
+  const [stocks, setStocks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const tickerRef = useRef(null);
+  const intervalRef = useRef(null);
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+  // Your original static data as fallback
+  const fallbackStocks = [
+    { symbol: 'RELIANCE', price: 2847.65, change: 12.45, isPositive: true },
+    { symbol: 'TCS', price: 3945.20, change: -8.75, isPositive: false },
+    { symbol: 'INFY', price: 1756.30, change: 23.10, isPositive: true },
+    { symbol: 'HDFCBANK', price: 1689.90, change: 8.41, isPositive: true },
+    { symbol: 'ICICIBANK', price: 1045.30, change: -12.71, isPositive: false },
+    { symbol: 'BHARTIARTL', price: 895.75, change: 29.42, isPositive: true },
+    { symbol: 'ITC', price: 456.80, change: 5.20, isPositive: true },
+    { symbol: 'WIPRO', price: 432.15, change: -2.85, isPositive: false }
   ];
+
+  // Fetch live stock data
+  const fetchStockData = async () => {
+    try {
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/stocks/ticker`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Transform API data to match your existing format
+      const transformedData = data.map(stock => ({
+        symbol: stock.symbol,
+        price: stock.price,
+        change: stock.change,
+        isPositive: stock.change >= 0,
+        mock: stock.mock || false
+      }));
+      
+      setStocks(transformedData);
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Error fetching stock data:', err);
+      setError(err.message);
+      setIsLoading(false);
+      
+      // Use your existing fallback data
+      setStocks(fallbackStocks);
+    }
+  };
+
+  // Initial data fetch and setup interval
+  useEffect(() => {
+    fetchStockData();
+    
+    // Set up interval to refresh data every 30 seconds
+    intervalRef.current = setInterval(fetchStockData, 30000);
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
+  // Handle ticker pause/resume on hover
+  const handleMouseEnter = () => {
+    setIsPaused(true);
+    if (tickerRef.current) {
+      tickerRef.current.style.animationPlayState = 'paused';
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsPaused(false);
+    if (tickerRef.current) {
+      tickerRef.current.style.animationPlayState = 'running';
+    }
+  };
+
+  // Manual refresh handler
+  const handleRefresh = () => {
+    setIsLoading(true);
+    fetchStockData();
+  };
+
+  if (isLoading && stocks.length === 0) {
+    return (
+      <div className="bg-white border-b border-gray-200 overflow-hidden relative">
+        <div className="flex items-center justify-center py-3 px-4">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
+          <span className="text-sm text-gray-600">Loading live stock data...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white border-b border-gray-200 overflow-hidden relative">
-      <div className="flex">
-        <div className="flex space-x-8 whitespace-nowrap py-3 px-4 animate-marquee md:animate-marquee hover:pause min-w-max">
-          {[...tickerStocks, ...tickerStocks, ...tickerStocks].map((stock, index) => (
-            <div key={index} className="flex items-center space-x-2 text-sm flex-shrink-0">
+      {/* Status indicator and controls */}
+      <div className="absolute top-1 right-4 flex items-center space-x-2 z-10">
+        <div className={`w-2 h-2 rounded-full ${error ? 'bg-red-500' : 'bg-green-500'} animate-pulse`}></div>
+        <button
+          onClick={handleRefresh}
+          className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+          title="Refresh data"
+        >
+          ↻
+        </button>
+        {error && (
+          <span className="text-xs text-orange-500" title={error}>
+            API Error
+          </span>
+        )}
+      </div>
+
+      <div 
+        className="flex"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div 
+          ref={tickerRef}
+          className="flex space-x-8 whitespace-nowrap py-3 px-4 animate-marquee md:animate-marquee min-w-max"
+          style={{
+            animationPlayState: isPaused ? 'paused' : 'running'
+          }}
+        >
+          {[...stocks, ...stocks, ...stocks].map((stock, index) => (
+            <div key={`${stock.symbol}-${index}`} className="flex items-center space-x-2 text-sm flex-shrink-0">
               <span className="font-semibold text-gray-900">{stock.symbol}</span>
-              <span className="text-gray-600">{stock.price}</span>
+              <span className="text-gray-600">
+                {stock.symbol.startsWith('RELI') || stock.symbol.startsWith('TCS') ? '₹' : '$'}
+                {stock.price.toFixed(2)}
+              </span>
               <span className={`flex items-center font-medium ${
                 stock.isPositive ? 'text-green-600' : 'text-red-600'
               }`}>
@@ -48,8 +168,11 @@ const StockTicker = () => {
                 ) : (
                   <TrendingDown className="w-3 h-3 mr-1" />
                 )}
-                {stock.change}
+                {stock.isPositive ? '+' : ''}{stock.change.toFixed(2)}
               </span>
+              {stock.mock && (
+                <span className="text-xs text-orange-500">DEMO</span>
+              )}
             </div>
           ))}
         </div>
@@ -103,7 +226,7 @@ const LandingPage = ({ setCurrentPage }) => {
         </div>
       </nav>
 
-      {/* Stock Ticker */}
+      {/* Enhanced Stock Ticker with Live Data */}
       <StockTicker />
 
       {/* Mobile Menu */}
@@ -127,7 +250,7 @@ const LandingPage = ({ setCurrentPage }) => {
         <div className="text-center">
           <div className="inline-flex items-center bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-6 border border-blue-200">
             <Zap className="w-4 h-4 mr-2" />
-            India's #1 Stock Alert Platform
+            India's #1 Stock Alert Platform - Now with Live Data
           </div>
           
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
@@ -250,36 +373,6 @@ const LandingPage = ({ setCurrentPage }) => {
               </div>
               
               <ul className="space-y-4 mb-8">
-                {['Up to 5 companies', 'Basic alerts (Results, Dividends)', 'WhatsApp notifications', 'Email support'].map((feature, index) => (
-                  <li key={index} className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
-                    <span className="text-gray-600">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              
-              <button 
-                onClick={() => setCurrentPage('login')}
-                className="w-full bg-gray-100 text-gray-900 py-4 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
-              >
-                Start Free Trial
-              </button>
-            </div>
-
-            <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-8 rounded-2xl relative shadow-2xl transform hover:scale-105 transition-all duration-300">
-              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="bg-yellow-400 text-yellow-900 px-4 py-2 rounded-full text-sm font-bold shadow-lg">
-                  ⭐ Most Popular
-                </span>
-              </div>
-              
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-bold text-white mb-2">Pro Plan</h3>
-                <div className="text-5xl font-bold text-white mb-2">₹499</div>
-                <div className="text-blue-100">per month</div>
-              </div>
-              
-              <ul className="space-y-4 mb-8">
                 {['Unlimited companies', 'All alert types (100+ categories)', 'Advanced filtering & AI insights', 'Priority WhatsApp delivery', 'Custom alert schedules', 'Portfolio analytics', 'Priority support'].map((feature, index) => (
                   <li key={index} className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-white mr-3 flex-shrink-0" />
@@ -339,8 +432,38 @@ const LandingPage = ({ setCurrentPage }) => {
           </div>
         </div>
       </footer>
-      </div>
+    </div>
   );
 };
 
-export default LandingPage;
+export default LandingPage;4 mb-8">
+                {['Up to 5 companies', 'Basic alerts (Results, Dividends)', 'WhatsApp notifications', 'Email support'].map((feature, index) => (
+                  <li key={index} className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
+                    <span className="text-gray-600">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              
+              <button 
+                onClick={() => setCurrentPage('login')}
+                className="w-full bg-gray-100 text-gray-900 py-4 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
+              >
+                Start Free Trial
+              </button>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-8 rounded-2xl relative shadow-2xl transform hover:scale-105 transition-all duration-300">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <span className="bg-yellow-400 text-yellow-900 px-4 py-2 rounded-full text-sm font-bold shadow-lg">
+                  ⭐ Most Popular
+                </span>
+              </div>
+              
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-white mb-2">Pro Plan</h3>
+                <div className="text-5xl font-bold text-white mb-2">₹499</div>
+                <div className="text-blue-100">per month</div>
+              </div>
+              
+              <ul className="space-y-
