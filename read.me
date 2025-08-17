@@ -1,0 +1,288 @@
+# 🚀 Vibha StockAlerts - Dual Market Edition
+
+**India's First Dual-Market Stock Alert Platform**  
+🇮🇳 **Indian Markets** (BSE/NSE) + 🌍 **Global Markets** (NYSE/NASDAQ/LSE)
+
+## 🎯 What's New in Dual-Market Edition
+
+### ✨ Enhanced Features
+- **🇮🇳 Indian Market Integration** - Real-time BSE/NSE data
+- **🌍 Global Market Coverage** - NYSE, NASDAQ, LSE via Alpha Vantage
+- **🔄 Unified Ticker** - Both markets in single stream
+- **📊 Cross-Market Analytics** - Compare Indian vs Global stocks
+- **💱 Currency Impact Alerts** - INR/USD fluctuation notifications
+- **🎯 Smart Market Filtering** - Toggle between Indian/Global views
+
+### 🏛️ Market Coverage
+| Market | Exchange | Status | Data Source |
+|--------|----------|---------|-------------|
+| 🇮🇳 Indian | BSE, NSE | 🚧 Mock (TODO: Real API) | Custom BSE/NSE APIs |
+| 🇺🇸 US | NYSE, NASDAQ | ✅ Live | Alpha Vantage |
+| 🇬🇧 UK | LSE | ⏳ Planned | Alpha Vantage |
+| 🇯🇵 Japan | TSE | ⏳ Planned | Alpha Vantage |
+
+## 🛠️ Quick Setup Guide
+
+### 1. Clone & Install Dependencies
+```bash
+# Clone your updated repo
+git clone https://github.com/yourusername/vibha-stock-alerts.git
+cd vibha-stock-alerts
+
+# Install all dependencies (frontend + backend)
+npm run install:all
+```
+
+### 2. Configure Environment Variables
+
+#### Frontend (.env)
+```bash
+# Create .env in root directory
+VITE_API_URL=http://localhost:3001/api
+```
+
+#### Backend (server/.env)
+```bash
+# Create server/.env
+PORT=3001
+
+# Global Markets API
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key_here
+
+# Indian Markets (TODO: Add real BSE/NSE credentials)
+BSE_API_KEY=your_bse_api_key_here
+NSE_API_KEY=your_nse_api_key_here
+
+# Feature Flags
+ENABLE_INDIAN_MARKETS=true
+ENABLE_GLOBAL_MARKETS=true
+```
+
+### 3. Get Alpha Vantage API Key (For Global Markets)
+1. Visit [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
+2. Sign up for free API key (500 requests/day)
+3. Replace `your_alpha_vantage_key_here` in `server/.env`
+
+### 4. Start Development Servers
+```bash
+# Start both frontend and backend
+npm run dev:full
+
+# Or start individually:
+npm run server    # Backend only
+npm run dev       # Frontend only
+```
+
+### 5. Test the Setup
+```bash
+# Test server health
+curl http://localhost:3001/api/health
+
+# Test unified ticker
+curl http://localhost:3001/api/stocks/ticker
+
+# Test Indian markets only
+curl "http://localhost:3001/api/stocks/ticker?global=false"
+
+# Test global markets only  
+curl "http://localhost:3001/api/stocks/ticker?indian=false"
+```
+
+## 📡 API Endpoints
+
+### 🔄 Unified Ticker
+```http
+GET /api/stocks/ticker?indian=true&global=true&limit=15
+```
+
+### 🔍 Smart Search
+```http
+GET /api/stocks/search/reliance
+GET /api/stocks/search/apple
+```
+
+### 📊 Individual Stock
+```http
+GET /api/stocks/RELIANCE    # Indian stock
+GET /api/stocks/AAPL        # Global stock
+```
+
+### 🏛️ Market Status
+```http
+GET /api/markets/status
+```
+
+### 📈 Portfolio Analytics
+```http
+GET /api/portfolio/analytics?symbols=RELIANCE,AAPL,TCS,GOOGL
+```
+
+### 🏥 Health Check
+```http
+GET /api/health
+```
+
+## 🚧 Current Implementation Status
+
+### ✅ Completed
+- [x] Dual-market backend architecture
+- [x] Alpha Vantage integration for global markets
+- [x] Enhanced frontend with market toggles
+- [x] Unified ticker display
+- [x] Cross-market portfolio analytics
+- [x] Smart caching system
+- [x] Rate limiting and error handling
+
+### 🚧 In Progress (Mock Data)
+- [ ] Real BSE API integration
+- [ ] Real NSE API integration
+- [ ] Indian market live data
+- [ ] Regulatory compliance for Indian markets
+
+### ⏳ Planned Features
+- [ ] Currency conversion alerts
+- [ ] Cross-market correlation analysis
+- [ ] Multi-language support (Hindi/English)
+- [ ] Advanced technical indicators
+- [ ] News sentiment analysis
+
+## 🔧 Development Scripts
+
+```bash
+# Full development setup
+npm run dev:full              # Start both frontend & backend
+
+# Backend only options
+npm run server               # Start backend server
+npm run dev:indian          # Indian markets only
+npm run dev:global          # Global markets only
+
+# Testing & Health
+npm run test:markets        # Test market connections
+npm run health-check        # Check server health
+npm run cache-clear         # Clear cache
+```
+
+## 🌐 Production Deployment
+
+### 1. Frontend (Netlify/Vercel)
+```bash
+# Build frontend
+npm run build
+
+# Deploy to your preferred platform
+# Update VITE_API_URL to your production backend URL
+```
+
+### 2. Backend (Railway/Heroku/DigitalOcean)
+```bash
+# Set production environment variables
+ALPHA_VANTAGE_API_KEY=your_production_key
+BSE_API_KEY=your_bse_production_key
+NSE_API_KEY=your_nse_production_key
+
+# Deploy backend to your preferred platform
+```
+
+## 📊 Market Data Sources
+
+### 🌍 Global Markets (Live)
+- **Provider**: Alpha Vantage
+- **Coverage**: NYSE, NASDAQ, LSE, TSE
+- **Update Frequency**: Real-time (with 15-min delay for free tier)
+- **Rate Limits**: 500 requests/day (free), 1200/minute (premium)
+
+### 🇮🇳 Indian Markets (Mock - TODO)
+- **Target Providers**: BSE API, NSE API
+- **Coverage**: BSE, NSE, MCX
+- **Update Frequency**: Real-time (1-second delay target)
+- **Status**: Currently using realistic mock data
+
+## 🔐 API Key Management
+
+### Alpha Vantage (Global Markets)
+- **Free Tier**: 500 requests/day
+- **Premium**: $49.99/month, 1200 requests/minute
+- **Enterprise**: Custom pricing, unlimited requests
+
+### BSE/NSE APIs (Indian Markets - Future)
+- **BSE API**: Apply at [BSE Developers](https://www.bseindia.com/corporates/API.aspx)
+- **NSE API**: Contact NSE directly for API access
+- **Regulatory**: Ensure compliance with SEBI guidelines
+
+## 📈 Performance Optimizations
+
+### Caching Strategy
+- **Real-time data**: 1-minute cache
+- **Historical data**: 5-minute cache
+- **Search results**: 15-minute cache
+- **Market status**: 30-second cache
+
+### Rate Limiting
+- **Per IP**: 200 requests per 15-minute window
+- **Global**: Distributed across both markets
+- **Graceful degradation**: Fallback to cached data
+
+## 🆘 Troubleshooting
+
+### Common Issues
+
+#### 1. "API Key Missing" Error
+```bash
+# Check if Alpha Vantage API key is set
+echo $ALPHA_VANTAGE_API_KEY
+
+# Update server/.env file
+ALPHA_VANTAGE_API_KEY=your_actual_key_here
+```
+
+#### 2. "No Indian Market Data" Warning
+```bash
+# This is expected - currently using mock data
+# Real BSE/NSE integration coming soon
+```
+
+#### 3. CORS Errors
+```bash
+# Ensure frontend .env has correct backend URL
+VITE_API_URL=http://localhost:3001/api
+```
+
+#### 4. Rate Limiting Errors
+```bash
+# Check Alpha Vantage quota
+# Consider upgrading to premium plan
+# Use caching to reduce API calls
+```
+
+### Debug Mode
+```bash
+# Enable debug logging
+DEBUG=true npm run dev
+
+# Test individual market endpoints
+curl http://localhost:3001/api/health
+```
+
+## 🤝 Contributing
+
+1. **Fork the repository**
+2. **Create feature branch**: `git checkout -b feature/indian-markets`
+3. **Make your changes**
+4. **Test thoroughly**: `npm run test:markets`
+5. **Submit pull request**
+
+## 📞 Support
+
+- **Email**: support@vibhastockalerts.com
+- **GitHub Issues**: [Report bugs](https://github.com/yourusername/vibha-stock-alerts/issues)
+- **Documentation**: [Wiki](https://github.com/yourusername/vibha-stock-alerts/wiki)
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+**Built with ❤️ for Indian and Global Investors**  
+🇮🇳 **Vibha StockAlerts** - Never Miss A Market Move
