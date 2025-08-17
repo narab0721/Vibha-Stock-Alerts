@@ -37,17 +37,73 @@ html {
   animation: spin 1s linear infinite;
 }
 
+/* Stock ticker marquee animation - CRITICAL ADDITION */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+  animation-play-state: running;
+  will-change: transform;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
 /* Animation pause utility */
 .pause {
   animation-play-state: paused !important;
 }
 
-/* Stock ticker animation enhancements */
-.animate-marquee:hover {
-  animation-play-state: paused;
+/* Responsive marquee speeds */
+@media (max-width: 768px) {
+  .animate-marquee {
+    animation-duration: 20s;
+  }
 }
 
-/* Ensure animation works across different browsers */
-.animate-marquee {
-  will-change: transform;
+@media (min-width: 1024px) {
+  .animate-marquee {
+    animation-duration: 40s;
+  }
+}
+
+/* Enhanced transitions */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Glass morphism effects */
+.backdrop-blur-md {
+  backdrop-filter: blur(12px);
+}
+
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+}
+
+/* Custom gradient text */
+.gradient-text {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Enhanced shadow utilities */
+.shadow-glow {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.shadow-glow-purple {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
 }
