@@ -1,4 +1,4 @@
-// server/server.js - Enhanced with Multiple API Providers and Better Error Handling
+// server/server.js - Enhanced with Separate Indian/Global Endpoints for Dual Tickers
 
 import express from 'express';
 import cors from 'cors';
@@ -34,9 +34,17 @@ const cache = new Map();
 const CACHE_DURATION = 60000; // 1 minute for real-time data
 const LONG_CACHE_DURATION = 300000; // 5 minutes for search results
 
-// Market Classifications
-const INDIAN_SYMBOLS = ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'HINDUNILVR', 'ITC', 'SBIN', 'BHARTIARTL', 'ASIANPAINT', 'MARUTI', 'ADANIGREEN', 'TATASTEEL', 'WIPRO', 'LT', 'HCLTECH'];
-const GLOBAL_SYMBOLS = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'BRK.B', 'JPM', 'V', 'JNJ', 'WMT', 'PG', 'UNH'];
+// Market Classifications - Enhanced
+const INDIAN_SYMBOLS = [
+  'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'HINDUNILVR', 'ITC', 'SBIN', 
+  'BHARTIARTL', 'ASIANPAINT', 'MARUTI', 'ADANIGREEN', 'TATASTEEL', 
+  'WIPRO', 'LT', 'HCLTECH', 'ICICIBANK', 'KOTAKBANK', 'BAJFINANCE'
+];
+
+const GLOBAL_SYMBOLS = [
+  'AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 
+  'BRK.B', 'JPM', 'V', 'JNJ', 'WMT', 'PG', 'UNH', 'DIS', 'ADBE', 'CRM'
+];
 
 // Enhanced Cache functions
 const getCachedData = (key) => {
@@ -59,95 +67,179 @@ const setCachedData = (key, data, ttl = CACHE_DURATION) => {
 };
 
 // =============================================================================
-// GLOBAL MARKET DATA FETCHER (Enhanced with Better Error Handling)
+// 🇮🇳 INDIAN STOCKS ONLY ENDPOINT
 // =============================================================================
 
-const fetchGlobalStockData = async (symbol) => {
+app.get('/api/stocks/indian', async (req, res) => {
   try {
-    if (!ALPHA_VANTAGE_API_KEY || ALPHA_VANTAGE_API_KEY === 'demo') {
-      throw new Error('Alpha Vantage API key required for global stocks');
+    const limit = parseInt(req.query.limit) || 12;
+    const cacheKey = `indian-stocks-${limit}`;
+    
+    // Check cache first
+    const cachedData = getCachedData(cacheKey);
+    if (cachedData) {
+      console.log('📦 Serving cached Indian stocks data');
+      return res.json({
+        ...cachedData,
+        cached: true,
+        cacheAge: Math.round((Date.now() - cachedData.timestamp) / 1000)
+      });
     }
 
-    const response = await axios.get('https://www.alphavantage.co/query', {
-      params: {
-        function: 'GLOBAL_QUOTE',
-        symbol: symbol,
-        apikey: ALPHA_VANTAGE_API_KEY
-      },
-      timeout: 10000
+    const indianStocks = [];
+    const promises = [];
+    const errors = [];
+
+    // Fetch Indian stocks only
+    const indianSymbols = INDIAN_SYMBOLS.slice(0, limit);
+    console.log(`🇮🇳 Fetching ${indianSymbols.length} Indian stocks...`);
+    
+    promises.push(
+      ...indianSymbols.map(async (symbol) => {
+        try {
+          return await fetchIndianStockData(symbol);
+        } catch (error) {
+          errors.push({ symbol, error: error.message, market: 'indian' });
+          return null;
+        }
+      })
+    );
+
+    const results = await Promise.all(promises);
+    
+    // Filter out null results and add to indianStocks
+    results.forEach(result => {
+      if (result) {
+        indianStocks.push(result);
+      }
     });
 
-    const quote = response.data['Global Quote'];
-    if (!quote || Object.keys(quote).length === 0) {
-      throw new Error(`No data available for ${symbol}`);
-    }
+    // Sort by absolute change percentage for more interesting display
+    indianStocks.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
 
-    const price = parseFloat(quote['05. price']) || 0;
-    const change = parseFloat(quote['09. change']) || 0;
-    const changePercent = quote['10. change percent'] ? 
-      parseFloat(quote['10. change percent'].replace('%', '')) : 0;
-
-    return {
-      symbol: symbol,
-      name: getGlobalCompanyName(symbol),
-      price: Math.round(price * 100) / 100,
-      change: Math.round(change * 100) / 100,
-      changePercent: Math.round(changePercent * 100) / 100,
-      high: Math.round((parseFloat(quote['03. high']) || price) * 100) / 100,
-      low: Math.round((parseFloat(quote['04. low']) || price) * 100) / 100,
-      volume: parseInt(quote['06. volume']) || 0,
-      previousClose: Math.round((parseFloat(quote['08. previous close']) || price) * 100) / 100,
-      marketCap: calculateGlobalMarketCap(symbol, price),
-      sector: getGlobalSector(symbol),
-      exchange: getGlobalExchange(symbol),
-      currency: 'USD',
-      marketOpen: isGlobalMarketOpen(),
-      timestamp: new Date().toISOString(),
-      source: 'Alpha_Vantage_Global'
+    // Generate comprehensive summary
+    const summary = {
+      total: indianStocks.length,
+      market: 'indian',
+      sources: [...new Set(indianStocks.map(s => s.source))],
+      errors: errors.length,
+      mockData: indianStocks.filter(s => s.mock).length,
+      gainers: indianStocks.filter(s => s.change > 0).length,
+      losers: indianStocks.filter(s => s.change < 0).length,
+      cached: false,
+      timestamp: Date.now(),
+      marketOpen: isIndianMarketOpen()
     };
-  } catch (error) {
-    console.error(`Error fetching global stock ${symbol}:`, error.message);
-    
-    // Return mock data for global stocks if API fails
-    return generateGlobalMockData(symbol);
-  }
-};
 
-const generateGlobalMockData = (symbol) => {
-  const basePrice = getGlobalBasePrice(symbol);
-  const volatility = getGlobalVolatility(symbol);
-  
-  const timeBasedVariation = Math.sin(Date.now() / 10000) * 0.5;
-  const randomVariation = (Math.random() - 0.5) * 2;
-  const totalVariation = (timeBasedVariation + randomVariation) * volatility;
-  
-  const price = Math.max(basePrice + totalVariation, basePrice * 0.85);
-  const change = totalVariation;
-  const changePercent = (change / basePrice) * 100;
-  
-  return {
-    symbol: symbol,
-    name: getGlobalCompanyName(symbol),
-    price: Math.round(price * 100) / 100,
-    change: Math.round(change * 100) / 100,
-    changePercent: Math.round(changePercent * 100) / 100,
-    high: Math.round((price + Math.abs(change) * 0.4) * 100) / 100,
-    low: Math.round((price - Math.abs(change) * 0.4) * 100) / 100,
-    volume: Math.floor(Math.random() * 100000000) + 10000000,
-    previousClose: Math.round(basePrice * 100) / 100,
-    marketCap: calculateGlobalMarketCap(symbol, price),
-    sector: getGlobalSector(symbol),
-    exchange: getGlobalExchange(symbol),
-    currency: 'USD',
-    marketOpen: isGlobalMarketOpen(),
-    timestamp: new Date().toISOString(),
-    source: 'Mock_Global_Data',
-    mock: true
-  };
-};
+    const response = {
+      summary,
+      data: indianStocks,
+      errors: errors.length > 0 ? errors : undefined
+    };
+    
+    // Cache the successful response
+    setCachedData(cacheKey, response, CACHE_DURATION);
+    
+    console.log(`✅ Indian stocks response: ${summary.total} stocks (${summary.gainers} gainers, ${summary.losers} losers)`);
+    res.json(response);
+  } catch (error) {
+    console.error('Error in Indian stocks endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch Indian stocks data',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // =============================================================================
-// 📊 ENHANCED UNIFIED TICKER ENDPOINT
+// 🌍 GLOBAL STOCKS ONLY ENDPOINT
+// =============================================================================
+
+app.get('/api/stocks/global', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 12;
+    const cacheKey = `global-stocks-${limit}`;
+    
+    // Check cache first
+    const cachedData = getCachedData(cacheKey);
+    if (cachedData) {
+      console.log('📦 Serving cached Global stocks data');
+      return res.json({
+        ...cachedData,
+        cached: true,
+        cacheAge: Math.round((Date.now() - cachedData.timestamp) / 1000)
+      });
+    }
+
+    const globalStocks = [];
+    const promises = [];
+    const errors = [];
+
+    // Fetch Global stocks only
+    const globalSymbols = GLOBAL_SYMBOLS.slice(0, limit);
+    console.log(`🌍 Fetching ${globalSymbols.length} Global stocks...`);
+    
+    promises.push(
+      ...globalSymbols.map(async (symbol) => {
+        try {
+          return await fetchGlobalStockData(symbol);
+        } catch (error) {
+          errors.push({ symbol, error: error.message, market: 'global' });
+          return null;
+        }
+      })
+    );
+
+    const results = await Promise.all(promises);
+    
+    // Filter out null results and add to globalStocks
+    results.forEach(result => {
+      if (result) {
+        globalStocks.push(result);
+      }
+    });
+
+    // Sort by absolute change percentage for more interesting display
+    globalStocks.sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
+
+    // Generate comprehensive summary
+    const summary = {
+      total: globalStocks.length,
+      market: 'global',
+      sources: [...new Set(globalStocks.map(s => s.source))],
+      errors: errors.length,
+      mockData: globalStocks.filter(s => s.mock).length,
+      gainers: globalStocks.filter(s => s.change > 0).length,
+      losers: globalStocks.filter(s => s.change < 0).length,
+      cached: false,
+      timestamp: Date.now(),
+      marketOpen: isGlobalMarketOpen()
+    };
+
+    const response = {
+      summary,
+      data: globalStocks,
+      errors: errors.length > 0 ? errors : undefined
+    };
+    
+    // Cache the successful response
+    setCachedData(cacheKey, response, CACHE_DURATION);
+    
+    console.log(`✅ Global stocks response: ${summary.total} stocks (${summary.gainers} gainers, ${summary.losers} losers)`);
+    res.json(response);
+  } catch (error) {
+    console.error('Error in Global stocks endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch Global stocks data',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// =============================================================================
+// 📊 ENHANCED UNIFIED TICKER ENDPOINT (Backwards Compatible)
 // =============================================================================
 
 app.get('/api/stocks/ticker', async (req, res) => {
@@ -155,6 +247,14 @@ app.get('/api/stocks/ticker', async (req, res) => {
     const includeIndian = req.query.indian !== 'false';
     const includeGlobal = req.query.global !== 'false';
     const limit = parseInt(req.query.limit) || 15;
+    
+    // If specific market requested, redirect to specific endpoint
+    if (includeIndian && !includeGlobal) {
+      return res.redirect(`/api/stocks/indian?limit=${Math.ceil(limit)}`);
+    }
+    if (includeGlobal && !includeIndian) {
+      return res.redirect(`/api/stocks/global?limit=${Math.ceil(limit)}`);
+    }
     
     const cacheKey = `unified-ticker-${includeIndian}-${includeGlobal}-${limit}`;
     
@@ -329,21 +429,32 @@ app.get('/api/stocks/:symbol', async (req, res) => {
 });
 
 // =============================================================================
-// 🔍 STOCK SEARCH ENDPOINT
+// 🔍 ENHANCED STOCK SEARCH ENDPOINT
 // =============================================================================
 
 app.get('/api/stocks/search/:query', async (req, res) => {
   try {
     const { query } = req.params;
-    const cacheKey = `search-${query.toLowerCase()}`;
+    const marketFilter = req.query.market; // 'indian', 'global', or undefined for both
+    const cacheKey = `search-${query.toLowerCase()}-${marketFilter || 'all'}`;
     
     const cachedData = getCachedData(cacheKey);
     if (cachedData) {
       return res.json(cachedData);
     }
 
-    const allSymbols = [...INDIAN_SYMBOLS, ...GLOBAL_SYMBOLS];
-    const results = allSymbols
+    let searchSymbols = [];
+    
+    // Filter symbols based on market preference
+    if (marketFilter === 'indian') {
+      searchSymbols = INDIAN_SYMBOLS;
+    } else if (marketFilter === 'global') {
+      searchSymbols = GLOBAL_SYMBOLS;
+    } else {
+      searchSymbols = [...INDIAN_SYMBOLS, ...GLOBAL_SYMBOLS];
+    }
+
+    const results = searchSymbols
       .filter(symbol => 
         symbol.toLowerCase().includes(query.toLowerCase()) ||
         getCompanyName(symbol).toLowerCase().includes(query.toLowerCase())
@@ -353,14 +464,20 @@ app.get('/api/stocks/search/:query', async (req, res) => {
         name: getCompanyName(symbol),
         market: INDIAN_SYMBOLS.includes(symbol) ? 'indian' : 'global',
         currency: INDIAN_SYMBOLS.includes(symbol) ? 'INR' : 'USD',
-        exchange: INDIAN_SYMBOLS.includes(symbol) ? 'NSE' : getGlobalExchange(symbol)
+        exchange: INDIAN_SYMBOLS.includes(symbol) ? 'NSE' : getGlobalExchange(symbol),
+        flag: INDIAN_SYMBOLS.includes(symbol) ? '🇮🇳' : '🇺🇸'
       }))
       .slice(0, 10);
 
     const response = {
       query,
+      marketFilter: marketFilter || 'all',
       results,
       total: results.length,
+      breakdown: {
+        indian: results.filter(r => r.market === 'indian').length,
+        global: results.filter(r => r.market === 'global').length
+      },
       timestamp: new Date().toISOString()
     };
 
@@ -376,7 +493,7 @@ app.get('/api/stocks/search/:query', async (req, res) => {
 });
 
 // =============================================================================
-// 🏛️ ENHANCED MARKET STATUS
+// 🏛️ ENHANCED MARKET STATUS WITH DUAL MARKET INFO
 // =============================================================================
 
 app.get('/api/markets/status', async (req, res) => {
@@ -388,42 +505,57 @@ app.get('/api/markets/status', async (req, res) => {
     // Check API health
     const apiHealth = await checkAPIHealth();
 
+    // Calculate market statistics
+    const indianCacheSize = Array.from(cache.keys()).filter(key => key.includes('indian')).length;
+    const globalCacheSize = Array.from(cache.keys()).filter(key => key.includes('global')).length;
+
     res.json({
       timestamp: now.toISOString(),
-      indian: {
-        open: isIndianMarketOpen(),
-        nextSession: getNextIndianSession(),
-        timezone: 'IST',
-        currentTime: istTime.toLocaleString(),
-        exchanges: ['NSE', 'BSE'],
-        tradingHours: '9:15 AM - 3:30 PM IST',
-        dataSources: [
-          { name: 'Financial Modeling Prep', status: apiHealth['Financial Modeling Prep'] || 'Not Configured', limit: '250/day', priority: 1 },
-          { name: 'Twelve Data', status: apiHealth['Twelve Data'] || 'Not Configured', limit: '800/day', priority: 2 },
-          { name: 'Alpha Vantage', status: apiHealth['Alpha Vantage'] || 'Not Configured', limit: '500/day', priority: 3 },
-          { name: 'Yahoo Finance (Proxy)', status: 'Available', limit: 'Unlimited', priority: 4 }
-        ]
-      },
-      global: {
-        nyse: {
+      dual_tickers: {
+        indian: {
+          open: isIndianMarketOpen(),
+          nextSession: getNextIndianSession(),
+          timezone: 'IST',
+          currentTime: istTime.toLocaleString(),
+          exchanges: ['NSE', 'BSE'],
+          tradingHours: '9:15 AM - 3:30 PM IST',
+          symbols: INDIAN_SYMBOLS.length,
+          cacheEntries: indianCacheSize,
+          endpoints: ['/api/stocks/indian', '/api/stocks/ticker?indian=true&global=false'],
+          dataSources: [
+            { name: 'Financial Modeling Prep', status: apiHealth['Financial Modeling Prep'] || 'Not Configured', limit: '250/day', priority: 1 },
+            { name: 'Twelve Data', status: apiHealth['Twelve Data'] || 'Not Configured', limit: '800/day', priority: 2 },
+            { name: 'Alpha Vantage', status: apiHealth['Alpha Vantage'] || 'Not Configured', limit: '500/day', priority: 3 },
+            { name: 'Yahoo Finance (Proxy)', status: 'Available', limit: 'Unlimited', priority: 4 }
+          ]
+        },
+        global: {
           open: isGlobalMarketOpen(),
           nextSession: getNextUSSession(),
           timezone: 'EST/EDT',
           currentTime: usTime.toLocaleString(),
-          tradingHours: '9:30 AM - 4:00 PM EST'
-        },
-        nasdaq: {
-          open: isGlobalMarketOpen(),
-          timezone: 'EST/EDT',
-          tradingHours: '9:30 AM - 4:00 PM EST'
-        },
-        dataSources: [
-          { name: 'Alpha Vantage', status: process.env.ALPHA_VANTAGE_API_KEY ? 'Configured' : 'Not Configured', limit: '500/day' }
-        ]
+          exchanges: ['NYSE', 'NASDAQ'],
+          tradingHours: '9:30 AM - 4:00 PM EST',
+          symbols: GLOBAL_SYMBOLS.length,
+          cacheEntries: globalCacheSize,
+          endpoints: ['/api/stocks/global', '/api/stocks/ticker?indian=false&global=true'],
+          dataSources: [
+            { name: 'Alpha Vantage', status: process.env.ALPHA_VANTAGE_API_KEY ? 'Configured' : 'Not Configured', limit: '500/day' },
+            { name: 'Enhanced Mock Data', status: 'Available', limit: 'Unlimited' }
+          ]
+        }
       },
-      cache: {
-        size: cache.size,
-        maxSize: 1000
+      system: {
+        cache: {
+          total: cache.size,
+          indian: indianCacheSize,
+          global: globalCacheSize,
+          maxSize: 1000
+        },
+        performance: {
+          uptime: Math.floor(process.uptime()),
+          memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB'
+        }
       }
     });
   } catch (error) {
@@ -436,7 +568,7 @@ app.get('/api/markets/status', async (req, res) => {
 });
 
 // =============================================================================
-// 🏥 COMPREHENSIVE HEALTH CHECK
+// 🏥 COMPREHENSIVE HEALTH CHECK WITH DUAL MARKET INFO
 // =============================================================================
 
 app.get('/api/health', async (req, res) => {
@@ -454,17 +586,26 @@ app.get('/api/health', async (req, res) => {
       },
       cache: {
         size: cache.size,
-        maxSize: 1000
+        maxSize: 1000,
+        breakdown: {
+          indian: Array.from(cache.keys()).filter(key => key.includes('indian')).length,
+          global: Array.from(cache.keys()).filter(key => key.includes('global')).length,
+          unified: Array.from(cache.keys()).filter(key => key.includes('unified')).length
+        }
       },
-      markets: {
+      dual_markets: {
         indian: {
           status: '🇮🇳 Multi-Provider System',
           providers: Object.keys(apiStatus).length + 1, // +1 for Yahoo proxy
-          primary: 'Financial Modeling Prep'
+          primary: 'Financial Modeling Prep',
+          symbols: INDIAN_SYMBOLS.length,
+          endpoint: '/api/stocks/indian'
         },
         global: {
-          status: '🌍 Alpha Vantage',
-          configured: process.env.ALPHA_VANTAGE_API_KEY ? true : false
+          status: '🌍 Alpha Vantage + Mock',
+          configured: process.env.ALPHA_VANTAGE_API_KEY ? true : false,
+          symbols: GLOBAL_SYMBOLS.length,
+          endpoint: '/api/stocks/global'
         }
       },
       apis: {
@@ -472,7 +613,11 @@ app.get('/api/health', async (req, res) => {
         'Yahoo Finance (Proxy)': 'Available (Fallback)'
       },
       endpoints: {
-        ticker: '/api/stocks/ticker',
+        separateTickers: {
+          indian: '/api/stocks/indian',
+          global: '/api/stocks/global'
+        },
+        unified: '/api/stocks/ticker',
         stockDetail: '/api/stocks/:symbol',
         search: '/api/stocks/search/:query',
         markets: '/api/markets/status',
@@ -492,23 +637,39 @@ app.get('/api/health', async (req, res) => {
 });
 
 // =============================================================================
-// 📚 ENHANCED API SETUP GUIDE
+// 📚 ENHANCED API SETUP GUIDE WITH DUAL TICKER INFO
 // =============================================================================
 
 app.get('/api/setup', (req, res) => {
   const setupGuide = {
-    title: '🚀 Enhanced Multi-Provider API Setup',
-    overview: 'Your app now uses multiple FREE APIs with automatic fallbacks for maximum reliability',
+    title: '🚀 Enhanced Dual-Ticker API Setup',
+    overview: 'Your app now supports separate Indian and Global stock tickers with dedicated endpoints',
     
+    dualTickers: {
+      description: 'Experience separate live tickers for better market focus',
+      benefits: [
+        '🇮🇳 Dedicated Indian market ticker (BSE/NSE)',
+        '🌍 Separate Global market ticker (NYSE/NASDAQ)', 
+        '⚡ Faster loading with targeted API calls',
+        '🎯 Better user experience and market focus',
+        '📱 Optimized for mobile and desktop'
+      ],
+      endpoints: {
+        indian: '/api/stocks/indian?limit=12',
+        global: '/api/stocks/global?limit=12',
+        unified: '/api/stocks/ticker (backwards compatible)'
+      }
+    },
+
     currentStatus: {
-      working: ['Yahoo Finance (Proxy)', 'Enhanced Mock Data'],
+      working: ['Dual ticker system', 'Yahoo Finance (Proxy)', 'Enhanced Mock Data'],
       needSetup: ['Financial Modeling Prep', 'Twelve Data', 'Alpha Vantage'],
       priority: 'Add API keys for better data quality and higher limits'
     },
 
     freeApis: {
       financialModelingPrep: {
-        name: 'Financial Modeling Prep (Recommended)',
+        name: 'Financial Modeling Prep (Recommended for Indian)',
         priority: 1,
         cost: 'FREE (250 calls/day)',
         coverage: 'Excellent Indian stock coverage',
@@ -524,7 +685,7 @@ app.get('/api/setup', (req, res) => {
       },
       
       twelveData: {
-        name: 'Twelve Data',
+        name: 'Twelve Data (Great for Both Markets)',
         priority: 2,
         cost: 'FREE (800 calls/day)',
         coverage: 'Good Indian + Global coverage',
@@ -540,7 +701,7 @@ app.get('/api/setup', (req, res) => {
       },
 
       alphaVantage: {
-        name: 'Alpha Vantage',
+        name: 'Alpha Vantage (Best for Global)',
         priority: 3,
         cost: 'FREE (500 calls/day)',
         coverage: 'Indian + Global markets',
@@ -556,34 +717,126 @@ app.get('/api/setup', (req, res) => {
       }
     },
 
-    fallbackSystem: {
-      description: 'Multi-layer fallback system ensures 99.9% uptime',
-      layers: [
-        'Layer 1: Primary APIs (FMP, Twelve Data, Alpha Vantage)',
-        'Layer 2: Yahoo Finance with CORS proxies',
-        'Layer 3: Enhanced realistic mock data',
-        'Layer 4: Intelligent caching system'
+    testCommands: {
+      description: 'Test your dual ticker system',
+      commands: [
+        'curl http://localhost:3001/api/health',
+        'curl http://localhost:3001/api/stocks/indian',
+        'curl http://localhost:3001/api/stocks/global', 
+        'curl http://localhost:3001/api/stocks/ticker',
+        'curl http://localhost:3001/api/markets/status'
       ]
     },
 
-    quickStart: [
-      '✅ Your app already works without any setup',
-      '🔧 Add API keys for better data quality',
-      '📈 Multiple providers ensure reliability',
-      '💰 All APIs are completely FREE',
-      '🚀 Automatic failover between providers'
-    ],
-
-    testCommands: [
-      'curl http://localhost:3001/api/health',
-      'curl http://localhost:3001/api/stocks/ticker',
-      'curl http://localhost:3001/api/stocks/RELIANCE',
-      'curl http://localhost:3001/api/markets/status'
-    ]
+    frontendUsage: {
+      description: 'How to use dual tickers in your frontend',
+      examples: [
+        '// Fetch Indian stocks only',
+        'fetch("/api/stocks/indian?limit=12")',
+        '',
+        '// Fetch Global stocks only', 
+        'fetch("/api/stocks/global?limit=12")',
+        '',
+        '// Fetch both (unified ticker)',
+        'fetch("/api/stocks/ticker?limit=24")',
+        '',
+        '// Search within specific market',
+        'fetch("/api/stocks/search/apple?market=global")',
+        'fetch("/api/stocks/search/reliance?market=indian")'
+      ]
+    }
   };
 
   res.json(setupGuide);
 });
+
+// =============================================================================
+// GLOBAL MARKET DATA FETCHER (Enhanced with Better Error Handling)
+// =============================================================================
+
+const fetchGlobalStockData = async (symbol) => {
+  try {
+    if (!ALPHA_VANTAGE_API_KEY || ALPHA_VANTAGE_API_KEY === 'demo') {
+      throw new Error('Alpha Vantage API key required for global stocks');
+    }
+
+    const response = await axios.get('https://www.alphavantage.co/query', {
+      params: {
+        function: 'GLOBAL_QUOTE',
+        symbol: symbol,
+        apikey: ALPHA_VANTAGE_API_KEY
+      },
+      timeout: 10000
+    });
+
+    const quote = response.data['Global Quote'];
+    if (!quote || Object.keys(quote).length === 0) {
+      throw new Error(`No data available for ${symbol}`);
+    }
+
+    const price = parseFloat(quote['05. price']) || 0;
+    const change = parseFloat(quote['09. change']) || 0;
+    const changePercent = quote['10. change percent'] ? 
+      parseFloat(quote['10. change percent'].replace('%', '')) : 0;
+
+    return {
+      symbol: symbol,
+      name: getGlobalCompanyName(symbol),
+      price: Math.round(price * 100) / 100,
+      change: Math.round(change * 100) / 100,
+      changePercent: Math.round(changePercent * 100) / 100,
+      high: Math.round((parseFloat(quote['03. high']) || price) * 100) / 100,
+      low: Math.round((parseFloat(quote['04. low']) || price) * 100) / 100,
+      volume: parseInt(quote['06. volume']) || 0,
+      previousClose: Math.round((parseFloat(quote['08. previous close']) || price) * 100) / 100,
+      marketCap: calculateGlobalMarketCap(symbol, price),
+      sector: getGlobalSector(symbol),
+      exchange: getGlobalExchange(symbol),
+      currency: 'USD',
+      marketOpen: isGlobalMarketOpen(),
+      timestamp: new Date().toISOString(),
+      source: 'Alpha_Vantage_Global'
+    };
+  } catch (error) {
+    console.error(`Error fetching global stock ${symbol}:`, error.message);
+    
+    // Return mock data for global stocks if API fails
+    return generateGlobalMockData(symbol);
+  }
+};
+
+const generateGlobalMockData = (symbol) => {
+  const basePrice = getGlobalBasePrice(symbol);
+  const volatility = getGlobalVolatility(symbol);
+  
+  const timeBasedVariation = Math.sin(Date.now() / 10000) * 0.5;
+  const randomVariation = (Math.random() - 0.5) * 2;
+  const totalVariation = (timeBasedVariation + randomVariation) * volatility;
+  
+  const price = Math.max(basePrice + totalVariation, basePrice * 0.85);
+  const change = totalVariation;
+  const changePercent = (change / basePrice) * 100;
+  
+  return {
+    symbol: symbol,
+    name: getGlobalCompanyName(symbol),
+    price: Math.round(price * 100) / 100,
+    change: Math.round(change * 100) / 100,
+    changePercent: Math.round(changePercent * 100) / 100,
+    high: Math.round((price + Math.abs(change) * 0.4) * 100) / 100,
+    low: Math.round((price - Math.abs(change) * 0.4) * 100) / 100,
+    volume: Math.floor(Math.random() * 100000000) + 10000000,
+    previousClose: Math.round(basePrice * 100) / 100,
+    marketCap: calculateGlobalMarketCap(symbol, price),
+    sector: getGlobalSector(symbol),
+    exchange: getGlobalExchange(symbol),
+    currency: 'USD',
+    marketOpen: isGlobalMarketOpen(),
+    timestamp: new Date().toISOString(),
+    source: 'Mock_Global_Data',
+    mock: true
+  };
+};
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -618,14 +871,27 @@ const GLOBAL_COMPANIES = {
   'TSLA': { name: 'Tesla Inc.', sector: 'Electric Vehicles', basePrice: 248, volatility: 15 },
   'META': { name: 'Meta Platforms Inc.', sector: 'Social Media', basePrice: 325, volatility: 12 },
   'NVDA': { name: 'NVIDIA Corporation', sector: 'Semiconductors', basePrice: 465, volatility: 20 },
-  'NFLX': { name: 'Netflix Inc.', sector: 'Entertainment', basePrice: 445, volatility: 18 }
+  'NFLX': { name: 'Netflix Inc.', sector: 'Entertainment', basePrice: 445, volatility: 18 },
+  'BRK.B': { name: 'Berkshire Hathaway Inc.', sector: 'Conglomerate', basePrice: 350, volatility: 10 },
+  'JPM': { name: 'JPMorgan Chase & Co.', sector: 'Banking', basePrice: 145, volatility: 8 },
+  'V': { name: 'Visa Inc.', sector: 'Financial Services', basePrice: 245, volatility: 12 },
+  'JNJ': { name: 'Johnson & Johnson', sector: 'Healthcare', basePrice: 160, volatility: 6 },
+  'WMT': { name: 'Walmart Inc.', sector: 'Retail', basePrice: 155, volatility: 7 },
+  'PG': { name: 'Procter & Gamble Co.', sector: 'Consumer Goods', basePrice: 150, volatility: 5 },
+  'UNH': { name: 'UnitedHealth Group Inc.', sector: 'Healthcare', basePrice: 525, volatility: 15 },
+  'DIS': { name: 'The Walt Disney Company', sector: 'Entertainment', basePrice: 95, volatility: 10 },
+  'ADBE': { name: 'Adobe Inc.', sector: 'Software', basePrice: 525, volatility: 18 },
+  'CRM': { name: 'Salesforce Inc.', sector: 'Software', basePrice: 210, volatility: 15 }
 };
 
 const getGlobalCompanyName = (symbol) => GLOBAL_COMPANIES[symbol]?.name || symbol;
 const getGlobalSector = (symbol) => GLOBAL_COMPANIES[symbol]?.sector || 'Unknown';
 const getGlobalBasePrice = (symbol) => GLOBAL_COMPANIES[symbol]?.basePrice || 100;
 const getGlobalVolatility = (symbol) => GLOBAL_COMPANIES[symbol]?.volatility || 5;
-const getGlobalExchange = (symbol) => ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NFLX'].includes(symbol) ? 'NASDAQ' : 'NYSE';
+const getGlobalExchange = (symbol) => {
+  const nasdaqStocks = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'ADBE', 'CRM'];
+  return nasdaqStocks.includes(symbol) ? 'NASDAQ' : 'NYSE';
+};
 
 const getCompanyName = (symbol) => {
   return INDIAN_SYMBOLS.includes(symbol) ? 
@@ -636,7 +902,10 @@ const getCompanyName = (symbol) => {
 const calculateGlobalMarketCap = (symbol, price) => {
   const shares = { // Outstanding shares in billions
     'AAPL': 15.7, 'GOOGL': 12.9, 'MSFT': 7.4, 'AMZN': 10.7,
-    'TSLA': 3.2, 'META': 2.5, 'NVDA': 2.5, 'NFLX': 0.44
+    'TSLA': 3.2, 'META': 2.5, 'NVDA': 2.5, 'NFLX': 0.44,
+    'BRK.B': 1.5, 'JPM': 2.9, 'V': 2.1, 'JNJ': 2.6,
+    'WMT': 2.7, 'PG': 2.4, 'UNH': 0.9, 'DIS': 1.8,
+    'ADBE': 0.46, 'CRM': 0.98
   };
   return Math.round((shares[symbol] || 1) * price);
 };
@@ -717,7 +986,10 @@ const getIndianCompanyName = (symbol) => {
     'TATASTEEL': 'Tata Steel Limited',
     'WIPRO': 'Wipro Limited',
     'LT': 'Larsen & Toubro Limited',
-    'HCLTECH': 'HCL Technologies Limited'
+    'HCLTECH': 'HCL Technologies Limited',
+    'ICICIBANK': 'ICICI Bank Limited',
+    'KOTAKBANK': 'Kotak Mahindra Bank',
+    'BAJFINANCE': 'Bajaj Finance Limited'
   };
   return companies[symbol.replace('.NS', '').replace('.BO', '')] || symbol;
 };
@@ -732,33 +1004,42 @@ app.use((error, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler with dual ticker info
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Endpoint not found',
-    availableEndpoints: [
-      'GET /api/health',
-      'GET /api/setup', 
-      'GET /api/stocks/ticker',
-      'GET /api/stocks/:symbol',
-      'GET /api/stocks/search/:query',
-      'GET /api/markets/status'
-    ],
+    availableEndpoints: {
+      dualTickers: {
+        indian: 'GET /api/stocks/indian',
+        global: 'GET /api/stocks/global'
+      },
+      unified: 'GET /api/stocks/ticker',
+      stockDetail: 'GET /api/stocks/:symbol',
+      search: 'GET /api/stocks/search/:query',
+      system: {
+        health: 'GET /api/health',
+        setup: 'GET /api/setup',
+        markets: 'GET /api/markets/status'
+      }
+    },
     timestamp: new Date().toISOString()
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 Vibha StockAlerts Enhanced Server running on port ${PORT}`);
-  console.log(`🇮🇳 Indian Markets: Multi-Provider System (FMP + Twelve Data + Alpha Vantage + Yahoo Proxy)`);
-  console.log(`🌍 Global Markets: ${ALPHA_VANTAGE_API_KEY && ALPHA_VANTAGE_API_KEY !== 'demo' ? '✅ Alpha Vantage Connected' : '❌ Alpha Vantage API Key Missing'}`);
-  console.log(`📊 Cache System: Active (${cache.size} entries)`);
-  console.log(`🔄 Fallback System: 4-Layer Protection`);
-  console.log(`\n📋 API Endpoints:`);
+  console.log(`\n🚀 Vibha StockAlerts Enhanced Dual-Ticker Server running on port ${PORT}`);
+  console.log(`\n📊 DUAL TICKER SYSTEM:`);
+  console.log(`   🇮🇳 Indian Markets: /api/stocks/indian (${INDIAN_SYMBOLS.length} symbols)`);
+  console.log(`   🌍 Global Markets: /api/stocks/global (${GLOBAL_SYMBOLS.length} symbols)`);
+  console.log(`   🔄 Unified Ticker: /api/stocks/ticker (backwards compatible)`);
+  console.log(`\n🔗 API Providers:`);
+  console.log(`   🇮🇳 Indian: Multi-Provider (FMP + Twelve Data + Alpha Vantage + Yahoo Proxy)`);
+  console.log(`   🌍 Global: ${ALPHA_VANTAGE_API_KEY && ALPHA_VANTAGE_API_KEY !== 'demo' ? '✅ Alpha Vantage Connected' : '❌ Alpha Vantage API Key Missing'}`);
+  console.log(`\n📋 Test Your Dual Tickers:`);
   console.log(`   🏥 Health Check: http://localhost:${PORT}/api/health`);
+  console.log(`   🇮🇳 Indian Stocks: http://localhost:${PORT}/api/stocks/indian`);
+  console.log(`   🌍 Global Stocks: http://localhost:${PORT}/api/stocks/global`);
   console.log(`   📚 Setup Guide: http://localhost:${PORT}/api/setup`);
-  console.log(`   📈 Live Ticker: http://localhost:${PORT}/api/stocks/ticker`);
-  console.log(`   🔍 Stock Search: http://localhost:${PORT}/api/stocks/search/reliance`);
   console.log(`   📊 Market Status: http://localhost:${PORT}/api/markets/status`);
-  console.log(`\n💡 System Status: Enhanced reliability with automatic API fallbacks!`);
+  console.log(`\n✨ Dual-ticker system ready! Better user experience with separate market focus.`);
 });
