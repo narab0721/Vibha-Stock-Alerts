@@ -436,7 +436,7 @@ const LandingPage = ({ setCurrentPage }) => {
   );
 };
 
-export default LandingPage;4 mb-8">
+export default LandingPage;
                 {['Up to 5 companies', 'Basic alerts (Results, Dividends)', 'WhatsApp notifications', 'Email support'].map((feature, index) => (
                   <li key={index} className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
@@ -466,4 +466,4 @@ export default LandingPage;4 mb-8">
                 <div className="text-blue-100">per month</div>
               </div>
               
-              <ul className="space-y-
+              <ul className="space-y-4 mb-8">
