@@ -1,0 +1,422 @@
+// src/services/AlertService.js
+class AlertService {
+  constructor() {
+    this.isInitialized = false;
+    this.alertCategories = [];
+    this.subscribers = new Set();
+    this.alertQueue = [];
+    this.processing = false;
+    this.config = {
+      maxRetries: 3,
+      retryDelay: 5000,
+      batchSize: 10,
+      rateLimitPerMinute: 60
+    };
+  }
+
+  async initialize(config) {
+    try {
+      this.alertCategories = config.categories;
+      this.markets = config.markets || ['NSE', 'BSE'];
+      this.language = config.language || 'english';
+      
+      // Initialize data sources
+      await this.initializeDataSources();
+      
+      // Start alert monitoring
+      this.startAlertMonitoring();
+      
+      this.isInitialized = true;
+      console.log('✅ AlertService initialized successfully');
+      
+      return true;
+    } catch (error) {
+      console.error('❌ AlertService initialization failed:', error);
+      throw error;
+    }
+  }
+
+  async initializeDataSources() {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    
+    this.dataSources = {
+      nse: {
+        url: `${API_BASE}/nse`,
+        endpoints: {
+          announcements: '/announcements',
+          results: '/results',
+          corporate_actions: '/corporate-actions'
+        }
+      },
+      bse: {
+        url: `${API_BASE}/bse`,
+        endpoints: {
+          announcements: '/announcements',
+          results: '/results',
+          corporate_actions: '/corporate-actions'
+        }
+      },
+      yahoo: {
+        url: `${API_BASE}/yahoo`,
+        endpoints: {
+          news: '/news',
+          financials: '/financials'
+        }
+      },
+      alphavantage: {
+        url: `${API_BASE}/alphavantage`,
+        endpoints: {
+          news: '/news',
+          earnings: '/earnings'
+        }
+      }
+    };
+
+    // Test connectivity to data sources
+    await Promise.all([
+      this.testDataSource('nse'),
+      this.testDataSource('bse'),
+      this.testDataSource('yahoo'),
+      this.testDataSource('alphavantage')
+    ]);
+  }
+
+  async testDataSource(source) {
+    try {
+      const response = await fetch(`${this.dataSources[source].url}/health`, {
+        timeout: 5000
+      });
+      
+      if (response.ok) {
+        console.log(`✅ ${source.toUpperCase()} data source connected`);
+        return true;
+      }
+      throw new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      console.warn(`⚠️ ${source.toUpperCase()} data source unavailable:`, error.message);
+      return false;
+    }
+  }
+
+  startAlertMonitoring() {
+    // Monitor NSE announcements
+    this.monitorNSEAnnouncements();
+    
+    // Monitor BSE announcements
+    this.monitorBSEAnnouncements();
+    
+    // Monitor financial results
+    this.monitorFinancialResults();
+    
+    // Monitor social sentiment (Twitter)
+    this.monitorSocialSentiment();
+    
+    // Process alert queue
+    this.processAlertQueue();
+  }
+
+  async monitorNSEAnnouncements() {
+    const checkInterval = 30000; // 30 seconds
+    
+    setInterval(async () => {
+      try {
+        const response = await fetch(`${this.dataSources.nse.url}/announcements?limit=50`);
+        const announcements = await response.json();
+        
+        for (const announcement of announcements) {
+          await this.processAnnouncement(announcement, 'NSE');
+        }
+      } catch (error) {
+        console.error('NSE announcement monitoring failed:', error);
+      }
+    }, checkInterval);
+  }
+
+  async monitorBSEAnnouncements() {
+    const checkInterval = 30000; // 30 seconds
+    
+    setInterval(async () => {
+      try {
+        const response = await fetch(`${this.dataSources.bse.url}/announcements?limit=50`);
+        const announcements = await response.json();
+        
+        for (const announcement of announcements) {
+          await this.processAnnouncement(announcement, 'BSE');
+        }
+      } catch (error) {
+        console.error('BSE announcement monitoring failed:', error);
+      }
+    }, checkInterval);
+  }
+
+  async monitorFinancialResults() {
+    const checkInterval = 60000; // 1 minute
+    
+    setInterval(async () => {
+      try {
+        // Check both NSE and BSE for financial results
+        const [nseResults, bseResults] = await Promise.all([
+          fetch(`${this.dataSources.nse.url}/results?type=quarterly`).then(r => r.json()),
+          fetch(`${this.dataSources.bse.url}/results?type=quarterly`).then(r => r.json())
+        ]);
+
+        [...nseResults, ...bseResults].forEach(result => {
+          this.processFinancialResult(result);
+        });
+      } catch (error) {
+        console.error('Financial results monitoring failed:', error);
+      }
+    }, checkInterval);
+  }
+
+  async monitorSocialSentiment() {
+    const checkInterval = 300000; // 5 minutes
+    
+    setInterval(async () => {
+      try {
+        const response = await fetch(`${this.dataSources.yahoo.url}/social-sentiment`);
+        const sentiment = await response.json();
+        
+        for (const item of sentiment) {
+          await this.processSocialSentiment(item);
+        }
+      } catch (error) {
+        console.error('Social sentiment monitoring failed:', error);
+      }
+    }, checkInterval);
+  }
+
+  async processAnnouncement(announcement, exchange) {
+    const alertType = this.categorizeAnnouncement(announcement);
+    
+    if (alertType) {
+      const alert = {
+        id: `${exchange}_${announcement.id}_${Date.now()}`,
+        company: announcement.company,
+        symbol: announcement.symbol,
+        type: alertType.id,
+        category: alertType.name,
+        exchange: exchange,
+        time: new Date().toISOString(),
+        importance: alertType.priority,
+        description: this.generateDescription(announcement, alertType),
+        rawData: announcement,
+        whatsappSent: false,
+        read: false
+      };
+
+      this.queueAlert(alert);
+    }
+  }
+
+  categorizeAnnouncement(announcement) {
+    const title = announcement.title?.toLowerCase() || '';
+    const description = announcement.description?.toLowerCase() || '';
+    const content = `${title} ${description}`;
+
+    // Enhanced categorization logic for Indian market announcements
+    const categoryMatches = [
+      {
+        category: 'financial_results',
+        keywords: ['result', 'earning', 'quarterly', 'annual', 'q1', 'q2', 'q3', 'q4', 'fy'],
+        priority: 'critical'
+      },
+      {
+        category: 'acquisition',
+        keywords: ['acquisition', 'merger', 'takeover', 'buy', 'acquire', 'merge'],
+        priority: 'high'
+      },
+      {
+        category: 'board_meeting',
+        keywords: ['board meeting', 'board', 'meeting outcome', 'board decision'],
+        priority: 'high'
+      },
+      {
+        category: 'dividend',
+        keywords: ['dividend', 'interim dividend', 'final dividend', 'bonus'],
+        priority: 'medium'
+      },
+      {
+        category: 'credit_rating',
+        keywords: ['rating', 'credit rating', 'upgraded', 'downgraded', 'outlook'],
+        priority: 'high'
+      },
+      {
+        category: 'pledge',
+        keywords: ['pledge', 'pledged', 'unpledged', 'promoter pledge'],
+        priority: 'high'
+      },
+      {
+        category: 'insider_trades',
+        keywords: ['insider trading', 'insider', 'director', 'promoter trading'],
+        priority: 'medium'
+      }
+    ];
+
+    for (const match of categoryMatches) {
+      if (match.keywords.some(keyword => content.includes(keyword))) {
+        return this.alertCategories.find(cat => cat.id === match.category);
+      }
+    }
+
+    // Default to company update if no specific match
+    return this.alertCategories.find(cat => cat.id === 'company_update');
+  }
+
+  generateDescription(announcement, alertType) {
+    const templates = {
+      financial_results: `📊 ${announcement.company}: ${announcement.title}`,
+      acquisition: `🤝 ${announcement.company}: ${announcement.title}`,
+      board_meeting: `👥 ${announcement.company}: ${announcement.title}`,
+      dividend: `💰 ${announcement.company}: ${announcement.title}`,
+      credit_rating: `⭐ ${announcement.company}: ${announcement.title}`,
+      pledge: `🔒 ${announcement.company}: ${announcement.title}`,
+      default: `📢 ${announcement.company}: ${announcement.title}`
+    };
+
+    return templates[alertType.id] || templates.default;
+  }
+
+  processFinancialResult(result) {
+    const alert = {
+      id: `result_${result.symbol}_${Date.now()}`,
+      company: result.company,
+      symbol: result.symbol,
+      type: 'financial_results',
+      category: 'Financial Results',
+      time: new Date().toISOString(),
+      importance: 'critical',
+      description: `📊 ${result.company}: Q${result.quarter} Results - Revenue: ₹${result.revenue}Cr (${result.revenueGrowth}), Profit: ₹${result.profit}Cr (${result.profitGrowth})`,
+      data: {
+        quarter: result.quarter,
+        revenue: result.revenue,
+        revenueGrowth: result.revenueGrowth,
+        profit: result.profit,
+        profitGrowth: result.profitGrowth,
+        eps: result.eps
+      },
+      whatsappSent: false,
+      read: false
+    };
+
+    this.queueAlert(alert);
+  }
+
+  processSocialSentiment(sentiment) {
+    if (sentiment.score > 0.7 || sentiment.score < -0.7) { // High positive or negative sentiment
+      const alert = {
+        id: `sentiment_${sentiment.symbol}_${Date.now()}`,
+        company: sentiment.company,
+        symbol: sentiment.symbol,
+        type: 'tweets_summary',
+        category: 'Tweets Summary',
+        time: new Date().toISOString(),
+        importance: 'low',
+        description: `🐦 ${sentiment.company}: Social sentiment ${sentiment.score > 0 ? 'very positive' : 'very negative'} (${sentiment.score.toFixed(2)})`,
+        data: {
+          score: sentiment.score,
+          volume: sentiment.volume,
+          keywords: sentiment.keywords
+        },
+        whatsappSent: false,
+        read: false
+      };
+
+      this.queueAlert(alert);
+    }
+  }
+
+  queueAlert(alert) {
+    this.alertQueue.push(alert);
+    
+    if (!this.processing) {
+      this.processAlertQueue();
+    }
+  }
+
+  async processAlertQueue() {
+    if (this.processing || this.alertQueue.length === 0) return;
+    
+    this.processing = true;
+    
+    try {
+      while (this.alertQueue.length > 0) {
+        const batch = this.alertQueue.splice(0, this.config.batchSize);
+        
+        for (const alert of batch) {
+          // Notify subscribers (UI components)
+          this.notifySubscribers(alert);
+          
+          // Add small delay to respect rate limits
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    } catch (error) {
+      console.error('Alert queue processing failed:', error);
+    } finally {
+      this.processing = false;
+    }
+  }
+
+  notifySubscribers(alert) {
+    this.subscribers.forEach(callback => {
+      try {
+        callback(alert);
+      } catch (error) {
+        console.error('Subscriber notification failed:', error);
+      }
+    });
+  }
+
+  onNewAlert(callback) {
+    this.subscribers.add(callback);
+    
+    return () => {
+      this.subscribers.delete(callback);
+    };
+  }
+
+  async getUserAlerts(userId, limit = 50) {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/alerts/${userId}?limit=${limit}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to fetch user alerts:', error);
+      return [];
+    }
+  }
+
+  async markAsRead(alertId) {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/alerts/${alertId}/read`, {
+        method: 'POST'
+      });
+    } catch (error) {
+      console.error('Failed to mark alert as read:', error);
+    }
+  }
+
+  async healthCheck() {
+    try {
+      const healthChecks = await Promise.all([
+        this.testDataSource('nse'),
+        this.testDataSource('bse'),
+        this.testDataSource('yahoo')
+      ]);
+
+      return healthChecks.every(check => check === true);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Cleanup method
+  destroy() {
+    this.subscribers.clear();
+    this.alertQueue = [];
+    this.processing = false;
+    this.isInitialized = false;
+  }
+}
+
+export default new AlertService();
